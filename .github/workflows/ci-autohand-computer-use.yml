@@ -1,0 +1,23 @@
+name: "CI: Autohand Computer Use"
+
+on:
+  pull_request:
+    paths:
+      - "autohand/**"
+      - ".github/workflows/ci-autohand-computer-use.yml"
+  push:
+    branches: [main]
+    paths:
+      - "autohand/**"
+      - ".github/workflows/ci-autohand-computer-use.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  macos-host:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and verify the branded permission host
+        run: ./autohand/tests/test-macos-host.sh
