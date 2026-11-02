@@ -5,6 +5,9 @@ import pathlib
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
+import os
 
 SCRIPT = pathlib.Path(__file__).parents[1] / "scripts/sign-macos-distribution.py"
 
@@ -38,6 +41,16 @@ class MacOSDistributionTests(unittest.TestCase):
         path, _ = self.archive(self.module.ENGINE_ENTRIES)
         with self.assertRaisesRegex(ValueError, "checksum"):
             self.module.validate_engine_archive(path, "0" * 64)
+
+    def test_checks_live_notarization_only_after_apple_acceptance(self):
+        with patch.dict(os.environ, {"APPLE_TEAM_ID": "TESTTEAM"}), patch.object(self.module, "run") as run:
+            run.return_value = SimpleNamespace(stderr="TeamIdentifier=TESTTEAM\nAuthority=Developer ID Application: Fixture")
+            self.module.verify(pathlib.Path("native-tool"), notarized=True)
+            self.assertIn("--check-notarization", run.call_args_list[0].args)
+            self.assertIn("-R=notarized", run.call_args_list[0].args)
+            run.reset_mock()
+            self.module.verify(pathlib.Path("native-tool"))
+            self.assertNotIn("--check-notarization", run.call_args_list[0].args)
 
     def test_rejects_unexpected_or_missing_native_code(self):
         for names in [self.module.ENGINE_ENTRIES | {"extra.dylib"}, self.module.ENGINE_ENTRIES - {"cua_driver_node_runtime.node"}]:

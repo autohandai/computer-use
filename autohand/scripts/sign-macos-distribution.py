@@ -45,8 +45,9 @@ def sign(path, identifier, entitlements=None):
     verify(path)
 
 
-def verify(path):
-    run("codesign", "--verify", "--deep", "--strict", path)
+def verify(path, notarized=False):
+    flags = ["-R=notarized", "--check-notarization"] if notarized else []
+    run("codesign", "--verify", "--deep", "--strict", *flags, path)
     result = run("codesign", "-dv", "--verbose=4", path, capture_output=True, text=True)
     if f"TeamIdentifier={os.environ['APPLE_TEAM_ID']}" not in result.stderr:
         raise ValueError(f"Unexpected signing team for {path}")
@@ -96,7 +97,7 @@ def main():
         run("xcrun", "stapler", "validate", app)
         run("spctl", "--assess", "--type", "execute", "--verbose=2", app)
         for name in sorted(NATIVE_ENTRIES):
-            verify(engine / name)
+            verify(engine / name, notarized=True)
         engine_archive = output / manifest["asset"]
         with tarfile.open(engine_archive, "w:gz") as archive:
             for name in sorted(ENGINE_ENTRIES):
