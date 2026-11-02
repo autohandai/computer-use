@@ -32,6 +32,32 @@ The build writes `autohand/dist/Autohand Computer Use.app`. Set
 `AUTOHAND_CODESIGN_IDENTITY` to a Developer ID Application identity for a
 production build. Local builds use ad hoc signing.
 
+Pass `--arch universal` to build both Apple Silicon and Intel slices. Every
+slice targets macOS 13 independently of the build runner's OS version.
+
+## Apple distribution
+
+The Autohand macOS release uses `release-autohand-computer-use.yml`, separate
+from the upstream Cua release workflow. Upstream's `com.trycua.driver` profile
+and pinned Cua signing team are not Autohand's distribution identity.
+
+Configure `CSC_LINK` (base64 Developer ID Application P12), `CSC_KEY_PASSWORD`,
+`APPLE_TEAM_ID`, `APPLE_API_KEY` (raw App Store Connect P8), `APPLE_API_KEY_ID`,
+and `APPLE_API_ISSUER`. The importer derives the signing identity from the
+certificate and verifies its team. Missing credentials stop the release.
+
+`macos-engine.json` pins the original engine archive and its digest. The signing
+script verifies that input, signs every native executable and library, builds
+the universal permission host, and submits the complete distribution to Apple.
+It staples the host and requires Gatekeeper acceptance before packaging.
+`provenance.json`, `notarization.json`, and `checksums.txt` bind the output
+archives to the Apple submission and original engine revision.
+
+The signed `computer-use-v*-autohand.*` revision is immutable. Linux and Windows
+continue using the original engine release. Increment the revision for another
+signed distribution; never replace an asset behind an existing checksum pin.
+The workflow defaults to artifact verification without publication.
+
 ## Distribution boundary
 
 Autohand Code pins an immutable commit from this repository during its build.

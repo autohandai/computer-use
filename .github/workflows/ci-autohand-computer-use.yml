@@ -16,8 +16,10 @@ permissions:
 
 jobs:
   macos-host:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - name: Build and verify the branded permission host
         run: ./autohand/tests/test-macos-host.sh
+      - name: Check signed distribution inputs
+        run: python3 -m unittest discover -s autohand/tests -p 'test_macos_distribution.py'
