@@ -58,6 +58,19 @@ continue using the original engine release. Increment the revision for another
 signed distribution; never replace an asset behind an existing checksum pin.
 The workflow defaults to artifact verification without publication.
 
+## CI ownership
+
+`CI: Autohand Computer Use` validates the branded host and distribution inputs.
+The manual Apple release workflow keeps its signing, notarization and publication
+gates. Shared source checks and contributor-attribution checks also remain active.
+
+The inherited Cua component release automation, driver/Lume nightlies, released
+installer matrix, live provider models and Fleets WIF smoke jobs run only in
+`trycua/cua`. They depend on Cua's component tags, release app, signing credentials
+or live services. Their repository guards apply to manual and scheduled runs,
+including summary jobs. They do not replace Autohand's pinned distribution checks.
+The workflow policy is covered by `.github/scripts/tests/test_autohand_workflow_policy.py`.
+
 ## Distribution boundary
 
 Autohand Code pins an immutable commit from this repository during its build.
