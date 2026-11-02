@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   smoke:
+    if: github.repository == 'trycua/cua'
     runs-on: ubuntu-latest
     steps:
       - name: Check out Cua
