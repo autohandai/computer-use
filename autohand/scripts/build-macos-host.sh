@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 OUTPUT="$ROOT/dist/Autohand Computer Use.app"
 VERSION="${AUTOHAND_BUILD_VERSION:-0.0.0}"
+ARCH="$(uname -m)"
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -13,6 +14,10 @@ while [ "$#" -gt 0 ]; do
             ;;
         --version)
             VERSION="$2"
+            shift 2
+            ;;
+        --arch)
+            ARCH="$2"
             shift 2
             ;;
         *)
@@ -34,12 +39,21 @@ trap 'rm -rf "$STAGING"' EXIT
 APP="$STAGING/Autohand Computer Use.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-/usr/bin/swiftc -O \
+case "$ARCH" in
+    universal) ARCHITECTURES=(arm64 x86_64) ;;
+    arm64|x86_64) ARCHITECTURES=("$ARCH") ;;
+    *) echo "Unsupported macOS architecture: $ARCH" >&2; exit 64 ;;
+esac
+for architecture in "${ARCHITECTURES[@]}"; do
+/usr/bin/swiftc -O -target "$architecture-apple-macosx13.0" \
     "$ROOT/macos/main.swift" \
     -module-cache-path "$STAGING/module-cache" \
     -framework ApplicationServices \
     -framework CoreGraphics \
-    -o "$APP/Contents/MacOS/AutohandComputerUse"
+    -o "$STAGING/AutohandComputerUse-$architecture"
+done
+/usr/bin/lipo -create "${ARCHITECTURES[@]/#/$STAGING/AutohandComputerUse-}" \
+    -output "$APP/Contents/MacOS/AutohandComputerUse"
 
 cp "$ROOT/assets/icon.png" "$APP/Contents/Resources/AutohandComputerUse.png"
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -64,7 +78,16 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 
 SIGN_IDENTITY="${AUTOHAND_CODESIGN_IDENTITY:--}"
-/usr/bin/codesign --force --deep --sign "$SIGN_IDENTITY" --timestamp=none "$APP"
+SIGN_ARGS=(--force --sign "$SIGN_IDENTITY")
+if [ "$SIGN_IDENTITY" = '-' ]; then
+    SIGN_ARGS+=(--timestamp=none)
+else
+    SIGN_ARGS+=(--timestamp --options runtime)
+    if [ -n "${AUTOHAND_CODESIGN_KEYCHAIN:-}" ]; then
+        SIGN_ARGS+=(--keychain "$AUTOHAND_CODESIGN_KEYCHAIN")
+    fi
+fi
+/usr/bin/codesign "${SIGN_ARGS[@]}" "$APP"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
 
 mkdir -p "$(dirname "$OUTPUT")"

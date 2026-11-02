@@ -1,0 +1,8 @@
+{
+  "version": "0.28.2",
+  "source_tag": "computer-use-v0.28.2",
+  "source_commit": "fc92b70417cdae941ba8b104a6e7b3b5b52a07e2",
+  "asset": "cua-driver-rs-0.28.2-darwin-universal-binary.tar.gz",
+  "sha256": "e1c859785107914c3432acda574f627a028a00704ce2bb6c37b2075e6ad16512",
+  "release_tag": "computer-use-v0.28.2-autohand.1"
+}

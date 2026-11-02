@@ -16,3 +16,4 @@ test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$OUTPUT/Contents/Info.
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$OUTPUT/Contents/Info.plist")" = \
   'ai.autohand.computer-use'
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$OUTPUT"
+/usr/bin/xcrun vtool -show-build "$OUTPUT/Contents/MacOS/AutohandComputerUse" | grep -Eq 'minos 13\.0'

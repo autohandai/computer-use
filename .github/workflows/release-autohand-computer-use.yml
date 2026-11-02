@@ -1,0 +1,70 @@
+name: Release Autohand Computer Use for macOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the notarized component revision
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  notarize:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test distribution contracts
+        run: python3 -m unittest discover -s autohand/tests -p 'test_macos_distribution.py'
+      - name: Import Autohand Developer ID and notarization credentials
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: bash autohand/scripts/import-apple-signing.sh
+      - name: Download the pinned engine input
+        run: |
+          python3 - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+          manifest = json.loads(Path('autohand/macos-engine.json').read_text())
+          url = f"https://github.com/autohandai/computer-use/releases/download/{manifest['source_tag']}/{manifest['asset']}"
+          subprocess.run(['curl', '--fail', '--location', '--max-time', '120', url, '--output', 'engine-input.tar.gz'], check=True)
+          PY
+      - name: Sign and notarize the complete native distribution
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: python3 autohand/scripts/sign-macos-distribution.py --engine-archive engine-input.tar.gz --output release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: autohand-computer-use-notarized-macos
+          path: |
+            release/*.tar.gz
+            release/*.json
+            release/checksums.txt
+      - name: Publish an immutable signed revision
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(python3 -c 'import json; print(json.load(open("autohand/macos-engine.json"))["release_tag"])')
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "::error::The signed revision already exists; choose a new immutable revision."
+            exit 1
+          fi
+          gh release create "$tag" --target "$GITHUB_SHA" --prerelease --title "Autohand Computer Use — Apple notarized" \
+            --notes 'Developer ID-signed native engine and stapled Autohand Computer Use host. Source hashes and Apple submission IDs are in provenance.json.' \
+            release/*.tar.gz release/provenance.json release/notarization.json release/checksums.txt
+      - name: Remove temporary signing credentials
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/autohand-signing.keychain-db" ]; then security delete-keychain "$RUNNER_TEMP/autohand-signing.keychain-db"; fi
+          rm -f "$RUNNER_TEMP/AutohandNotary.p8" "$RUNNER_TEMP/autohand-signing.p12"
