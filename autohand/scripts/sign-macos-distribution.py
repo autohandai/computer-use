@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -16,6 +17,22 @@ ENGINE_ENTRIES = {
 }
 NATIVE_ENTRIES = ENGINE_ENTRIES - {"LICENSE-CUA.md", "cua_driver_abi.h"}
 METADATA_ENTRIES = {"._."} | {"._" + name for name in ENGINE_ENTRIES}
+
+
+def load_manifest(path, build_receipt=None):
+    manifest = json.loads(Path(path).read_text())
+    if manifest.get("source_kind") == "git":
+        if not build_receipt:
+            raise ValueError("A source distribution requires its build receipt")
+        receipt = json.loads(Path(build_receipt).read_text())
+        if receipt.get("source_commit") != manifest["source_commit"]:
+            raise ValueError("The build receipt does not match the pinned source revision")
+        if not re.fullmatch(r"[0-9a-f]{64}", receipt.get("sha256", "")):
+            raise ValueError("The build receipt requires an archive SHA-256")
+        manifest.update(sha256=receipt["sha256"], build=receipt.get("build", {}))
+    elif build_receipt:
+        raise ValueError("A prebuilt distribution cannot use a source build receipt")
+    return manifest
 
 
 def validate_engine_archive(path, expected_sha256):
@@ -59,8 +76,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--engine-archive", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--build-receipt", type=Path)
     args = parser.parse_args()
-    manifest = json.loads((ROOT / "macos-engine.json").read_text())
+    manifest = load_manifest(ROOT / "macos-engine.json", args.build_receipt)
     validate_engine_archive(args.engine_archive, manifest["sha256"])
     required = ["AUTOHAND_CODESIGN_IDENTITY", "APPLE_TEAM_ID", "APPLE_API_KEY_PATH", "APPLE_API_KEY_ID", "APPLE_API_ISSUER"]
     if any(not os.environ.get(name) for name in required):
