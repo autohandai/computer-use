@@ -22,4 +22,4 @@ jobs:
       - name: Build and verify the branded permission host
         run: ./autohand/tests/test-macos-host.sh
       - name: Check signed distribution inputs
-        run: python3 -m unittest discover -s autohand/tests -p 'test_macos_distribution.py'
+        run: python3 -m unittest discover -s autohand/tests -p 'test_macos_*.py'

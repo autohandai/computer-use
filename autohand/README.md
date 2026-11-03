@@ -46,12 +46,20 @@ Configure `CSC_LINK` (base64 Developer ID Application P12), `CSC_KEY_PASSWORD`,
 and `APPLE_API_ISSUER`. The importer derives the signing identity from the
 certificate and verifies its team. Missing credentials stop the release.
 
-`macos-engine.json` pins the original engine archive and its digest. The signing
-script verifies that input, signs every native executable and library, builds
+`macos-engine.json` pins the exact engine source commit. The release runner builds
+both native architectures with the macOS 26 SDK and a macOS 13 deployment target,
+then packages the driver, cursor tool, Node runtime, SDK library, ABI header and
+original license. Its build receipt records the source commit, archive digest,
+Rust compiler, SDK and lockfile digest. The signer rejects a receipt from any
+other revision and verifies the complete archive before importing native files.
+It signs every native executable and library, builds
 the universal permission host, and submits the complete distribution to Apple.
 It staples the host and requires Gatekeeper acceptance before packaging.
 `provenance.json`, `notarization.json`, and `checksums.txt` bind the output
-archives to the Apple submission and original engine revision.
+archives to the Apple submission and original engine revision. Revision
+`computer-use-v0.28.2-autohand.1` re-signed the original 0.28.2 archive and does not
+contain PR #2. The next revision builds PR #2's pinned source; merging that PR
+alone cannot update an existing binary archive.
 
 The signed `computer-use-v*-autohand.*` revision is immutable. Linux and Windows
 continue using the original engine release. Increment the revision for another

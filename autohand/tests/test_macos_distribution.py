@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
 import os
+import json
 
 SCRIPT = pathlib.Path(__file__).parents[1] / "scripts/sign-macos-distribution.py"
 
@@ -32,6 +33,31 @@ class MacOSDistributionTests(unittest.TestCase):
     def test_accepts_the_exact_engine_contract(self):
         path, digest = self.archive(self.module.ENGINE_ENTRIES)
         self.module.validate_engine_archive(path, digest)
+
+    def test_source_build_receipt_must_match_the_pinned_cursor_fix(self):
+        manifest = pathlib.Path(self.directory.name) / "manifest.json"
+        receipt = pathlib.Path(self.directory.name) / "build.json"
+        manifest.write_text(json.dumps({"source_kind": "git", "source_commit": "6" * 40}))
+        receipt.write_text(json.dumps({"source_commit": "f" * 40, "sha256": "a" * 64}))
+        with self.assertRaisesRegex(ValueError, "source revision"):
+            self.module.load_manifest(manifest, receipt)
+
+    def test_source_build_requires_a_receipt_and_preserves_its_digest(self):
+        manifest = pathlib.Path(self.directory.name) / "manifest.json"
+        receipt = pathlib.Path(self.directory.name) / "build.json"
+        manifest.write_text(json.dumps({"source_kind": "git", "source_commit": "6" * 40}))
+        with self.assertRaisesRegex(ValueError, "build receipt"):
+            self.module.load_manifest(manifest)
+        receipt.write_text(json.dumps({"source_commit": "6" * 40, "sha256": "a" * 64, "build": {"rustc": "fixture"}}))
+        loaded = self.module.load_manifest(manifest, receipt)
+        self.assertEqual(loaded["sha256"], "a" * 64)
+        self.assertEqual(loaded["build"], {"rustc": "fixture"})
+
+    def test_rejects_a_build_receipt_for_a_prebuilt_release(self):
+        manifest = pathlib.Path(self.directory.name) / "manifest.json"
+        manifest.write_text(json.dumps({"source_commit": "f" * 40, "sha256": "a" * 64}))
+        with self.assertRaisesRegex(ValueError, "prebuilt"):
+            self.module.load_manifest(manifest, pathlib.Path("unexpected-build.json"))
 
     def test_accepts_appledouble_metadata_without_installing_it(self):
         path, digest = self.archive(self.module.ENGINE_ENTRIES | {"._."} | {"._" + name for name in self.module.ENGINE_ENTRIES})
